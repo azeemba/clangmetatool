@@ -21,6 +21,7 @@
 #include <clangmetatool/collectors/find_calls_data.h>
 #include <clangmetatool/collectors/include_graph.h>
 #include <clangmetatool/collectors/include_graph_data.h>
+#include <clangmetatool/propagation/constant_integer_propagator.h>
 
 namespace {
 
@@ -96,7 +97,30 @@ public:
         int64_t feature_id = argval.getExtValue();
         candidates.push_back
           ( ye_call{call, feature_id, ye_deterministic_val(feature_id) } );
+        continue;
       }
+
+      // let's try the const propagation.
+
+      // First we need to see if it is a implicitcastexpr ->
+      // declrefexpr -- which is the AST for using a variable
+      auto arg_as_ice = llvm::dyn_cast<clang::ImplicitCastExpr>(arg);
+      if (arg_as_ice == NULL)
+        continue;
+
+      const clang::Expr* subexpr = arg_as_ice->getSubExpr();
+      auto subexpr_as_dre = llvm::dyn_cast<clang::DeclRefExpr>(subexpr);
+      if (subexpr_as_dre == NULL)
+        continue;
+
+      clangmetatool::propagation::ConstantIntegerPropagator p(ci);
+      auto r = p.runPropagation(call_ctx.first, subexpr_as_dre);
+      if (r.isUnresolved())
+        continue;
+
+      int64_t feature_id = r.getResult();
+      candidates.push_back
+        ( ye_call{call, feature_id, ye_deterministic_val(feature_id) } );
     }
 
     // slightly ugly bit because we have a single Replacments object per file

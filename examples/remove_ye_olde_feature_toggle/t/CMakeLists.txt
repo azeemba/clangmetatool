@@ -3,6 +3,7 @@ foreach( TEST
     true_vs_false
     non_deterministic
     mixed_deterministic_and_not
+    integer_variable
     )
   add_test(
     NAME ${TEST}
